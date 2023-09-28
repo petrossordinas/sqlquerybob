@@ -1,13 +1,13 @@
 package sqlquerybob
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
 
-type database int
+type database int8
 
+// Supported database engines
 const (
 	MYSQL database = iota
 	SQLITE
@@ -15,7 +15,8 @@ const (
 	ORACLE
 )
 
-type queryType int
+// Supported query types
+type queryType int8
 
 const (
 	selectQry queryType = iota
@@ -24,46 +25,10 @@ const (
 	deleteQry
 )
 
+// Valid operators
 const (
 	validOperators = "=/>/</>=/<=/<>/IN/BETWEEN/LIKE"
 )
-
-// Errors
-type ErrBadColumnsValuesCombo struct {
-	columnCount int
-	valueCount  int
-	msg         string
-}
-
-func NewBadColumnsValuesComboError(columnCount, valueCount int) ErrBadColumnsValuesCombo {
-	return ErrBadColumnsValuesCombo{
-		columnCount: columnCount,
-		valueCount:  valueCount,
-		msg:         fmt.Sprintf("columns count (%d) must be equal to values count (%d)", columnCount, valueCount),
-	}
-}
-
-func (e ErrBadColumnsValuesCombo) Error() string {
-	return e.msg
-}
-
-type ErrInvalidSqlOperator struct {
-	operator string
-	msg      string
-}
-
-func NewInvalidOperatorError(operator string) ErrInvalidSqlOperator {
-	return ErrInvalidSqlOperator{
-		operator: operator,
-		msg:      fmt.Sprintf("operator '%s' is an invalid SQL operator", operator),
-	}
-}
-
-func (e ErrInvalidSqlOperator) Error() string {
-	return e.msg
-}
-
-var ErrFirstCriterionIsOr = errors.New("the first criterion is an OR")
 
 type Builder struct {
 	db               database
