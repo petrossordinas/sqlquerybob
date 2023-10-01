@@ -41,9 +41,11 @@ type Builder struct {
 		column   string
 		fkey     string
 	}
-	columns  []string
-	values   []interface{}
-	criteria []struct {
+	columns          []string
+	returningColumns []string
+	values           []interface{}
+	returnValues     []interface{}
+	criteria         []struct {
 		column   string
 		operator string
 		values   []interface{}
@@ -90,6 +92,20 @@ func (qb *Builder) Select(columns ...string) *Builder {
 	return qb
 }
 
+// Define the table columns to be returned from an insert.
+func (qb *Builder) Returning(columns ...string) *Builder {
+	for _, column := range columns {
+		tableColumn := strings.Split(column, ".")
+		if len(tableColumn) == 1 {
+			qb.returningColumns = append(qb.returningColumns, qb.table+"."+column)
+		}
+		if len(tableColumn) == 2 {
+			qb.returningColumns = append(qb.returningColumns, column)
+		}
+	}
+	return qb
+}
+
 // Adds a limit and / or offset clause to the query. If offset is not required, pass 0 as the
 // offset argument. Limit and offset must be non negative integers so we avoid this error by
 // making they are uints.
@@ -112,7 +128,12 @@ func (qb *Builder) To(values ...interface{}) *Builder {
 // Define the values in which the query results will be stored. These have to be
 // pointers.
 func (qb *Builder) Into(values ...interface{}) *Builder {
-	qb.values = append(qb.values, values...)
+	if qb.queryType == selectQry {
+		qb.values = append(qb.values, values...)
+	} else {
+		qb.returnValues = append(qb.returnValues, values...)
+	}
+
 	return qb
 }
 
@@ -202,6 +223,12 @@ func (qb *Builder) Values() []interface{} {
 	return qb.values
 }
 
+// Returns the pointer values in which the returning values for a PostgreSQL or Oracle
+// Insert, Update, Delete query with returning will be stored
+func (qb *Builder) ReturningValues() []interface{} {
+	return qb.returnValues
+}
+
 // Returns the criteria values that have been defined with Where
 func (qb *Builder) Criteria() []interface{} {
 	var values []interface{}
@@ -252,6 +279,11 @@ func (qb *Builder) generateDeleteQry() (string, error) {
 		return "", err
 	}
 	qry += whereClause
+	returningClause, err := qb.generateReturningClause()
+	if err != nil {
+		return "", err
+	}
+	qry += returningClause
 	return qry, err
 }
 
@@ -265,6 +297,11 @@ func (qb *Builder) generateUpdateQry() (string, error) {
 		return "", err
 	}
 	qry += whereClause
+	returningClause, err := qb.generateReturningClause()
+	if err != nil {
+		return "", err
+	}
+	qry += returningClause
 	return qry, err
 }
 
@@ -273,6 +310,11 @@ func (qb *Builder) generateInsertQry() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	returningClause, err := qb.generateReturningClause()
+	if err != nil {
+		return "", err
+	}
+	qry += returningClause
 	return qry, nil
 }
 
@@ -286,6 +328,25 @@ func (qb *Builder) generateSelectClause() (string, error) {
 	for i, column := range qb.columns {
 		qry += column
 		if i < len(qb.columns)-1 {
+			qry += ","
+		}
+	}
+	return qry, nil
+}
+
+// Generates the RETURNING clause. Will return error if the number of values is not equal
+// to the number of retungincolumns
+func (qb *Builder) generateReturningClause() (string, error) {
+	if len(qb.returningColumns) == 0 {
+		return "", nil
+	}
+	if len(qb.returningColumns) != len(qb.returnValues) {
+		return "", NewBadColumnsValuesComboError(len(qb.returningColumns), len(qb.returnValues))
+	}
+	qry := " RETURNING "
+	for i, column := range qb.returningColumns {
+		qry += column
+		if i < len(qb.returningColumns)-1 {
 			qry += ","
 		}
 	}

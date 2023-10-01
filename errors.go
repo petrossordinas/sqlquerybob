@@ -41,3 +41,5 @@ func (e ErrInvalidSqlOperator) Error() string {
 }
 
 var ErrFirstCriterionIsOr = errors.New("the first criterion is an OR")
+
+var ErrDBEngineDoesNotSupportReturning = errors.New("database engine does not support RETURNING clause")

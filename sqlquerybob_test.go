@@ -306,7 +306,8 @@ func TestItCreatesAnSQLStatementWithJoins(t *testing.T) {
 
 	assert := assert.New(t)
 	expected := "SELECT table1.field1,table1.field2,table1.field3,table1.field4,table2.field5,table3.field6" +
-		" FROM table1 LEFT JOIN table2 ON table2.table1_id=table1.id LEFT JOIN table3 ON table3.table1_id=table1.id" +
+		" FROM table1 LEFT JOIN table2 ON table2.table1_id=table1.id" +
+		" LEFT JOIN table3 ON table3.table1_id=table1.id" +
 		" WHERE table1.field1=? AND table1.field2 IN (?,?,?,?) AND table1.field3 BETWEEN ? AND ?"
 	assert.Nil(err)
 	assert.Equal(expected, qry)
@@ -404,6 +405,28 @@ func TestItCreatesASimpleInsertStatementForPostgres(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(expected, qry)
 	assert.Equal([]any{"value1", 2, 5, "value4"}, qb.Values())
+}
+
+func TestItCreatesAnInsertStatementForPostgresWithReturningClause(t *testing.T) {
+	var d struct {
+		id     int
+		field1 string
+	}
+	qb := NewInsert("table1").
+		ForDatabase(POSTGRES).
+		Set("field1", "field2", "field3", "field4").
+		To("value1", 2, 5, "value4").
+		Returning("id", "field1").
+		Into(&d.id, &d.field1)
+
+	qry, err := qb.GenerateQuery()
+	assert := assert.New(t)
+	expected := "INSERT INTO table1 (field1,field2,field3,field4) VALUES ($1,$2,$3,$4)" +
+		" RETURNING table1.id,table1.field1"
+	assert.Nil(err)
+	assert.Equal(expected, qry)
+	assert.Equal([]any{"value1", 2, 5, "value4"}, qb.Values())
+	assert.Equal([]any{&d.id, &d.field1}, qb.ReturningValues())
 }
 
 func TestItCreatesASimpleInsertStatementForOracle(t *testing.T) {
