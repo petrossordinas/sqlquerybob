@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// A custom type that describes the database engine the query builder will build queries for
 type database int8
 
 // Supported database engines
@@ -15,14 +16,24 @@ const (
 	ORACLE
 )
 
-// Supported query types
+// A custom type that describes the supported query types
 type queryType int8
 
+// Supported query types
 const (
 	selectQry queryType = iota
 	insertQry
 	updateQry
 	deleteQry
+)
+
+// A custom type that describes the sort order of a query with ORDER BY
+type sortOrder int8
+
+// Supported sort order types
+const (
+	ascending sortOrder = iota
+	descending
 )
 
 // Valid operators
@@ -53,7 +64,7 @@ type Builder struct {
 	}
 	orderBy []struct {
 		column    string
-		direction int
+		direction sortOrder
 	}
 	limit  uint
 	offset uint
@@ -72,6 +83,26 @@ func NewSelect(tableName string) *Builder {
 func (qb *Builder) ForDatabase(db database) *Builder {
 	qb.db = db
 	return qb
+}
+
+// Sets the database engine for MySQL
+func (qb *Builder) ForMySQL() *Builder {
+	return qb.ForDatabase(MYSQL)
+}
+
+// Sets the database engine for PostreSQL
+func (qb *Builder) ForPostgres() *Builder {
+	return qb.ForDatabase(POSTGRES)
+}
+
+// Sets the database engine for Oracle
+func (qb *Builder) ForOracle() *Builder {
+	return qb.ForDatabase(ORACLE)
+}
+
+// Sets the database engine for SQLite
+func (qb *Builder) ForSQLite() *Builder {
+	return qb.ForDatabase(SQLITE)
 }
 
 // Define the table columns to be selected. Table columns can be added by their name
@@ -194,10 +225,10 @@ func (qb *Builder) OrderBy(column string) *Builder {
 		qb.orderBy,
 		struct {
 			column    string
-			direction int
+			direction sortOrder
 		}{
 			column:    column,
-			direction: 1,
+			direction: ascending,
 		},
 	)
 	return qb
@@ -209,10 +240,10 @@ func (qb *Builder) OrderByDescending(column string) *Builder {
 		qb.orderBy,
 		struct {
 			column    string
-			direction int
+			direction sortOrder
 		}{
 			column:    column,
-			direction: -1,
+			direction: descending,
 		},
 	)
 	return qb
@@ -334,11 +365,15 @@ func (qb *Builder) generateSelectClause() (string, error) {
 	return qry, nil
 }
 
-// Generates the RETURNING clause. Will return error if the number of values is not equal
-// to the number of retungincolumns
+// Generates the RETURNING clause. Will return error if
+// a) the number of values is not equal to the number of returning columns
+// b) the databse engine does not support the RETURNING clause (MySQL, SQLite)
 func (qb *Builder) generateReturningClause() (string, error) {
 	if len(qb.returningColumns) == 0 {
 		return "", nil
+	}
+	if qb.db != POSTGRES && qb.db != ORACLE {
+		return "", ErrDBEngineDoesNotSupportReturning
 	}
 	if len(qb.returningColumns) != len(qb.returnValues) {
 		return "", NewBadColumnsValuesComboError(len(qb.returningColumns), len(qb.returnValues))
@@ -417,7 +452,7 @@ func (qb *Builder) generateOrderByClause() string {
 	for ci, order := range qb.orderBy {
 		qry += order.column
 		switch {
-		case order.direction == -1:
+		case order.direction == descending:
 			qry += " DESC"
 		default:
 			qry += " ASC"

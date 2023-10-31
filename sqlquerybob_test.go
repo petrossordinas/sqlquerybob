@@ -429,6 +429,28 @@ func TestItCreatesAnInsertStatementForPostgresWithReturningClause(t *testing.T) 
 	assert.Equal([]any{&d.id, &d.field1}, qb.ReturningValues())
 }
 
+func TestItCreatesAnInsertStatementForOracleWithReturningClause(t *testing.T) {
+	var d struct {
+		id     int
+		field1 string
+	}
+	qb := NewInsert("table1").
+		ForDatabase(ORACLE).
+		Set("field1", "field2", "field3", "field4").
+		To("value1", 2, 5, "value4").
+		Returning("table1.id", "table1.field1").
+		Into(&d.id, &d.field1)
+
+	qry, err := qb.GenerateQuery()
+	assert := assert.New(t)
+	expected := "INSERT INTO table1 (field1,field2,field3,field4) VALUES (:1,:2,:3,:4)" +
+		" RETURNING table1.id,table1.field1"
+	assert.Nil(err)
+	assert.Equal(expected, qry)
+	assert.Equal([]any{"value1", 2, 5, "value4"}, qb.Values())
+	assert.Equal([]any{&d.id, &d.field1}, qb.ReturningValues())
+}
+
 func TestItCreatesASimpleInsertStatementForOracle(t *testing.T) {
 	qb := NewInsert("table1").
 		ForDatabase(ORACLE).
@@ -454,4 +476,22 @@ func TestItReturnsAnErrorIfInsertColumnsNotEqualToValues(t *testing.T) {
 	assert := assert.New(t)
 	assert.NotNil(err)
 	assert.Equal("", qry)
+}
+
+func TestItReturnsAnErrorIfDatabaseEngineDoesNotSupportReturningClause(t *testing.T) {
+	var d struct {
+		id     int
+		field1 string
+	}
+	qb := NewInsert("table1").
+		ForDatabase(MYSQL).
+		Set("field1", "field2", "field3", "field4").
+		To("value1", 2, 5, "value4").
+		Returning("id", "field1").
+		Into(&d.id, &d.field1)
+
+	_, err := qb.GenerateQuery()
+	assert := assert.New(t)
+
+	assert.Equal(ErrDBEngineDoesNotSupportReturning, err)
 }
