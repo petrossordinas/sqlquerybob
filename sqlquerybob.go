@@ -38,7 +38,7 @@ const (
 
 // Valid operators
 const (
-	validOperators = "=/>/</>=/<=/<>/IN/BETWEEN/LIKE"
+	validOperators = "=/>/</>=/<=/<>/IN/BETWEEN/LIKE/IS NULL"
 )
 
 type Builder struct {
@@ -214,6 +214,25 @@ func (qb *Builder) OrWhere(column, operator string, values ...interface{}) *Buil
 			operator: strings.ToUpper(operator),
 			values:   values,
 			or:       true,
+		},
+	)
+	return qb
+}
+
+// Define a where NULL clause of the query.
+func (qb *Builder) WhereNull(column string) *Builder {
+	qb.criteria = append(
+		qb.criteria,
+		struct {
+			column   string
+			operator string
+			values   []interface{}
+			or       bool
+		}{
+			column:   column,
+			operator: "IS NULL",
+			values:   []interface{}{},
+			or:       false,
 		},
 	)
 	return qb
@@ -425,7 +444,10 @@ func (qb *Builder) generateWhereClause() (string, error) {
 			return "", NewInvalidOperatorError(criterion.operator)
 		}
 		qry += criterion.column
-		if criterion.operator == "BETWEEN" || criterion.operator == "IN" || criterion.operator == "LIKE" {
+		if criterion.operator == "BETWEEN" ||
+			criterion.operator == "IN" ||
+			criterion.operator == "LIKE" ||
+			criterion.operator == "IS NULL" {
 			qry += " "
 		}
 		qry += criterion.operator
@@ -436,6 +458,8 @@ func (qb *Builder) generateWhereClause() (string, error) {
 			qry += " " + qb.addPlaceholder() + " AND " + qb.addPlaceholder()
 		case criterion.operator == "IN":
 			qry += " (" + qb.addPlaceholder() + strings.Repeat(","+qb.addPlaceholder(), len(criterion.values)-1) + ")"
+		case criterion.operator == "IS NULL":
+			qry += ""
 		default:
 			qry += qb.addPlaceholder()
 		}

@@ -172,6 +172,32 @@ func TestItCreatesASimpleSQLStatementWithAND(t *testing.T) {
 	assert.Equal([]any{"value1", "value2"}, qb.Criteria())
 }
 
+func TestItCreatesASimpleSQLStatementWithISNull(t *testing.T) {
+	type dataStruct struct {
+		field1 string
+		field2 int
+		field3 int
+		field4 string
+	}
+	var d dataStruct
+	qb := NewSelect("table1").
+		Select("field1", "field2", "field3", "field4").
+		Into(&d.field1, &d.field2, &d.field3, &d.field4).
+		Where("table1.field1", "=", "value1").
+		WhereNull("table1.field2")
+	qry, err := qb.GenerateQuery()
+
+	assert := assert.New(t)
+	expected := "SELECT table1.field1,table1.field2,table1.field3,table1.field4" +
+		" FROM table1" +
+		" WHERE table1.field1=?" +
+		" AND table1.field2 IS NULL"
+	assert.Nil(err)
+	assert.Equal(expected, qry)
+	assert.Equal([]any{&d.field1, &d.field2, &d.field3, &d.field4}, qb.Values())
+	assert.Equal([]any{"value1"}, qb.Criteria())
+}
+
 func TestItCreatesASimpleSQLStatementWithOR(t *testing.T) {
 	type dataStruct struct {
 		field1 string
